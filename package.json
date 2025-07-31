@@ -1,7 +1,7 @@
 {
   "name": "alphonsa-textiles-server",
   "version": "1.0.0",
-  "description": "Secure server for the Alphonsa Textiles showcase.",
+  "description": "Secure, cloud-hosted server for the Alphonsa Textiles showcase.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
