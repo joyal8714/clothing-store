@@ -1,1 +1,59 @@
-document.addEventListener('DOMContentLoaded',()=>{const t=document.getElementById("current-products-grid"),e=async()=>{try{const e=await fetch(`/api/products?t=${(new Date).getTime()}`),o=await e.json();c(o)}catch(d){console.error("Error loading products:",d)}},c=e=>{let c="";e.forEach(t=>{c+=`<div class="admin-product-item"><img src="${t.images[0]}" alt="${t.title}"><div class="admin-product-info"><h4>${t.title}</h4><p>₹${t.price} (${t.category})</p></div><button class="delete-btn" data-id="${t._id}">Delete</button></div>`}),t.innerHTML=c};t.addEventListener("click",async t=>{if(t.target.classList.contains("delete-btn")){const o=t.target.dataset.id;if(confirm("Are you sure you want to delete this product?"))try{const t=await fetch(`/api/products/${o}`,{method:"DELETE"});t.ok?e():alert("Error deleting product.")}catch(c){console.error("Failed to delete product:",c)}}}),e()});
+document.addEventListener('DOMContentLoaded', () => {
+    const productsGrid = document.getElementById('current-products-grid');
+
+    const loadProducts = async () => {
+        try {
+            const res = await fetch(`/api/products?t=${new Date().getTime()}`);
+            if (!res.ok) {
+                throw new Error(`HTTP error! status: ${res.status}`);
+            }
+            const products = await res.json();
+            displayProducts(products);
+        } catch (error) {
+            console.error('Error loading products for admin:', error);
+            productsGrid.innerHTML = '<p style="color: red;">Could not load products.</p>';
+        }
+    };
+
+    const displayProducts = (products) => {
+        if (!products || products.length === 0) {
+            productsGrid.innerHTML = '<p>No products have been added yet.</p>';
+            return;
+        }
+        let productsHTML = '';
+        products.forEach(product => {
+            const imageUrl = (product.images && product.images.length > 0) ? product.images[0] : 'https://via.placeholder.com/60x60.png?text=No+Img';
+            productsHTML += `
+                <div class="admin-product-item">
+                    <img src="${imageUrl}" alt="${product.title || ''}">
+                    <div class="admin-product-info">
+                        <h4>${product.title || 'Untitled Product'}</h4>
+                        <p>₹${product.price || '0.00'} (${product.category || 'N/A'})</p>
+                    </div>
+                    <button class="delete-btn" data-id="${product._id}">Delete</button>
+                </div>`;
+        });
+        productsGrid.innerHTML = productsHTML;
+    };
+
+    productsGrid.addEventListener('click', async (e) => {
+        if (e.target.classList.contains('delete-btn')) {
+            const id = e.target.dataset.id;
+            if (confirm('Are you sure you want to delete this product?')) {
+                try {
+                    const response = await fetch(`/api/products/${id}`, { method: 'DELETE' });
+                    if (response.ok) {
+                        loadProducts(); // Reload the list after successful deletion
+                    } else {
+                        alert('Error deleting product. Please try again.');
+                    }
+                } catch (error) {
+                    console.error('Failed to delete product:', error);
+                    alert('An error occurred. Please check the console.');
+                }
+            }
+        }
+    });
+
+    loadProducts();
+});

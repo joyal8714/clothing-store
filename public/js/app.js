@@ -1,1 +1,98 @@
-document.addEventListener('DOMContentLoaded',()=>{const t=document.getElementById("product-grid"),e=document.getElementById("page-title"),o=document.getElementById("product-modal");let i=[];const d=async()=>{try{const d=await fetch("/api/products");i=await d.json();const n=new URLSearchParams(window.location.search).get("category");c(n)}catch(l){console.error("Failed to load products:",l),t.innerHTML="<p>Error loading products. Please try again later.</p>"}},c=c=>{let n=i;c?(n=i.filter(t=>t.category.toLowerCase()===c.toLowerCase()),e.textContent=`${c.charAt(0).toUpperCase()+c.slice(1)}'s Collection`):e.textContent="Our Latest Collection",t.innerHTML="",n.forEach(e=>{const i=document.createElement("div");i.className="product-card",i.dataset.productId=e.id,i.innerHTML=`<img src="${e.images[0]}" alt="${e.title}" class="product-image"><div class="product-info"><h3 class="product-title">${e.title}</h3><p class="product-description">${e.description.substring(0,100)}...</p><div class="product-footer"><span class="product-price">₹${e.price}</span></div></div>`,i.addEventListener("click",()=>l(e.id)),t.appendChild(i)})};const n=document.getElementById("modal-image-slider"),s=document.getElementById("modal-title"),a=document.getElementById("modal-description"),r=document.getElementById("modal-price");let m=0,u=[];const l=t=>{const e=i.find(e=>e.id===t);e&&(u=e.images,m=0,s.textContent=e.title,a.textContent=e.description,r.textContent=`₹${e.price}`,p(),o.style.display="flex",document.body.style.overflow="hidden")},y=()=>{o.style.display="none",document.body.style.overflow="auto"},p=()=>{n.innerHTML=u.map(t=>`<img src="${t}" alt="${s.textContent}">`).join(""),n.style.transform=`translateX(-${100*m}%)`,document.getElementById("slider-prev-btn").style.display=u.length>1?"block":"none",document.getElementById("slider-next-btn").style.display=u.length>1?"block":"none"},h=()=>{m=(m+1)%u.length,p()},f=()=>{m=(m-1+u.length)%u.length,p};document.getElementById("modal-close-btn").addEventListener("click",y),o.addEventListener("click",t=>t.target===o&&y()),document.getElementById("slider-next-btn").addEventListener("click",h),document.getElementById("slider-prev-btn").addEventListener("click",f),document.addEventListener("keydown",t=>{if("flex"===o.style.display){if("Escape"===t.key)y();if("ArrowRight"===t.key)h();if("ArrowLeft"===t.key)f()}}),d()});
+document.addEventListener('DOMContentLoaded', () => {
+    const productGrid = document.getElementById('product-grid');
+    const pageTitle = document.getElementById('page-title');
+    const modal = document.getElementById('product-modal');
+    let allProducts = [];
+
+    const loadProducts = async () => {
+        try {
+            // Use a cache-busting parameter to ensure we always get fresh data
+            const res = await fetch(`/api/products?t=${new Date().getTime()}`);
+            if (!res.ok) {
+                throw new Error(`HTTP error! status: ${res.status}`);
+            }
+            allProducts = await res.json();
+            
+            const params = new URLSearchParams(window.location.search);
+            const category = params.get('category');
+            
+            displayProducts(category);
+        } catch (error) {
+            console.error('Failed to load products:', error);
+            productGrid.innerHTML = '<p style="color: red;">Error: Could not load products. Please try again later.</p>';
+        }
+    };
+
+    const displayProducts = (category) => {
+        let productsToDisplay = allProducts;
+
+        if (category) {
+            productsToDisplay = allProducts.filter(p => p.category && p.category.toLowerCase() === category.toLowerCase());
+            pageTitle.textContent = `${category.charAt(0).toUpperCase() + category.slice(1)}'s Collection`;
+        } else {
+            pageTitle.textContent = 'Our Latest Collection';
+        }
+        
+        productGrid.innerHTML = '';
+        if (productsToDisplay.length === 0) {
+            productGrid.innerHTML = '<p>No products found in this collection yet.</p>';
+            return;
+        }
+
+        productsToDisplay.forEach(product => {
+            const card = document.createElement('div');
+            card.className = 'product-card';
+            card.dataset.productId = product._id; // Use _id from MongoDB
+            
+            // Defensive check for images array
+            const imageUrl = (product.images && product.images.length > 0) ? product.images[0] : 'https://via.placeholder.com/380x380.png?text=No+Image';
+
+            card.innerHTML = `
+                <img src="${imageUrl}" alt="${product.title}" class="product-image">
+                <div class="product-info">
+                    <h3 class="product-title">${product.title || 'Untitled Product'}</h3>
+                    <p class="product-description">${(product.description || '').substring(0, 100)}...</p>
+                    <div class="product-footer">
+                        <span class="product-price">₹${product.price || '0.00'}</span>
+                    </div>
+                </div>
+            `;
+            card.addEventListener('click', () => openModal(product._id));
+            productGrid.appendChild(card);
+        });
+    };
+
+    const modalImageSlider = document.getElementById('modal-image-slider'), modalTitle = document.getElementById('modal-title'), modalDescription = document.getElementById('modal-description'), modalPrice = document.getElementById('modal-price');
+    let currentImageIndex = 0, currentImages = [];
+
+    const openModal = (productId) => {
+        const product = allProducts.find(p => p._id === productId);
+        if (!product) return;
+        currentImages = product.images || [];
+        currentImageIndex = 0;
+        modalTitle.textContent = product.title;
+        modalDescription.textContent = product.description;
+        modalPrice.textContent = `₹${product.price}`;
+        updateSlider();
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    };
+
+    const closeModal = () => { modal.style.display = 'none'; document.body.style.overflow = 'auto'; };
+    const updateSlider = () => {
+        modalImageSlider.innerHTML = currentImages.map(src => `<img src="${src}" alt="${modalTitle.textContent}">`).join('');
+        modalImageSlider.style.transform = `translateX(-${currentImageIndex * 100}%)`;
+        document.getElementById('slider-prev-btn').style.display = currentImages.length > 1 ? 'block' : 'none';
+        document.getElementById('slider-next-btn').style.display = currentImages.length > 1 ? 'block' : 'none';
+    };
+    const showNextImage = () => { currentImageIndex = (currentImageIndex + 1) % currentImages.length; updateSlider(); };
+    const showPrevImage = () => { currentImageIndex = (currentImageIndex - 1 + currentImages.length) % currentImages.length; updateSlider(); };
+
+    document.getElementById('modal-close-btn').addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => e.target === modal && closeModal());
+    document.getElementById('slider-next-btn').addEventListener('click', showNextImage);
+    document.getElementById('slider-prev-btn').addEventListener('click', showPrevImage);
+    document.addEventListener('keydown', (e) => { if (modal.style.display === 'flex') { if (e.key === 'Escape') closeModal(); if (e.key === 'ArrowRight') showNextImage(); if (e.key === 'ArrowLeft') showPrevImage(); } });
+    
+    loadProducts();
+});
