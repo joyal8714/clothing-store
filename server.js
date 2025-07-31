@@ -63,9 +63,13 @@ app.use(session({
 
 const requireLogin = (req, res, next) => req.session.loggedIn ? next() : res.redirect('/login');
 
+// Change the code to this
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
-  params: { folder: 'alphonsa-textiles', allowed_formats: ['jpeg', 'jpg', 'png', 'webp'] }
+  params: { 
+    folder: 'alphonsa-textiles', 
+    allowed_formats: ['jpeg', 'jpg', 'png', 'webp', 'avif'] // <-- Add 'avif' here
+  }
 });
 const upload = multer({ storage });
 
