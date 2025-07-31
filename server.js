@@ -3,64 +3,71 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const session = require('express-session');
+const mongoose = require('mongoose'); // For MongoDB
+const cloudinary = require('cloudinary').v2; // For Cloudinary
+const { CloudinaryStorage } = require('multer-storage-cloudinary'); // Helper for multer
+
+// --- IMPORTANT: Configure Cloudinary ---
+// You will get these values from your Cloudinary dashboard
+cloudinary.config({ 
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME, 
+  api_key: process.env.CLOUDINARY_API_KEY, 
+  api_secret: process.env.CLOUDINARY_API_SECRET 
+});
 
 const app = express();
-// Render provides the PORT environment variable.
-const port = process.env.PORT || 3000; 
+const port = process.env.PORT || 3000;
 
-// --- CHANGE #1: Define the path to the persistent disk ---
-// This is the special folder where Render will save our data permanently.
-const persistentDataPath = '/var/data';
-const productsFilePath = path.join(persistentDataPath, 'products.json');
-const uploadsPath = path.join(persistentDataPath, 'uploads');
+// --- Connect to MongoDB ---
+// You will get this connection string from your MongoDB Atlas dashboard
+mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => console.log('MongoDB connected...'))
+  .catch(err => console.log('MongoDB connection error:', err));
 
-// --- Create the uploads directory on the disk if it doesn't exist ---
-// This ensures our image upload folder is always available.
-if (!fs.existsSync(uploadsPath)) {
-    fs.mkdirSync(uploadsPath, { recursive: true });
-}
+// --- Define a Schema and Model for Products ---
+const ProductSchema = new mongoose.Schema({
+  title: String,
+  description: String,
+  price: String,
+  category: String,
+  images: [{
+    url: String, // URL from Cloudinary
+    filename: String // Public ID from Cloudinary
+  }]
+});
 
+const Product = mongoose.model('Product', ProductSchema);
+
+// --- Session Middleware ---
 app.use(session({
   secret: 'alphonsa-textiles-secret-key-sidarth',
   resave: false,
-  saveUninitialized: false,
-  cookie: { secure: false, httpOnly: true, maxAge: 24 * 60 * 60 * 1000 }
+  saveUninitialized: true, // Set to true to avoid issues on some platforms
+  cookie: { secure: process.env.NODE_ENV === 'production' } // Use secure cookies in production
 }));
 
-const requireLogin = (req, res, next) => {
-  if (req.session.loggedIn) {
-    next();
-  } else {
-    res.redirect('/login');
+const requireLogin = (req, res, next) => req.session.loggedIn ? next() : res.redirect('/login');
+
+// --- Configure Multer to upload to Cloudinary ---
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'alphonsa-textiles', // A folder name in your Cloudinary account
+    allowed_formats: ['jpeg', 'jpg', 'png']
   }
-};
-
-const getDefaultProducts = () => [
-    {id: 1, title: 'Men\'s Linen Comfort Shirt', description: 'Experience pure comfort with our 100% breathable linen shirt. Perfectly tailored for a relaxed yet sharp look, ideal for warm days and effortless style.', price: '2499.00', images: ['https://images.unsplash.com/photo-1618220883196-3c4234257125?q=80&w=1974&auto=format&fit=crop'], category: 'men'},
-    {id: 2, title: 'Women\'s "Elegance" Silk Gown', description: 'Crafted from the finest mulberry silk, this gown features a luxurious drape that flows with every step. Its subtle sheen makes it perfect for evening events.', price: '7999.00', images: ['https://images.unsplash.com/photo-1595911475066-d44fab89e2d7?q=80&w=1974&auto=format&fit=crop'], category: 'women'},
-    {id: 3, title: 'Men\'s Heritage Denim Jacket', description: 'A timeless staple made from robust, raw denim that ages beautifully. Features classic copper buttons and a fit that gets better with every wear.', price: '4500.00', images: ['https://images.unsplash.com/photo-1543087904-749a173c94aa?q=80&w=1974&auto=format&fit=crop'], category: 'men'}
-];
-const readProductsFromFile = () => { try { if (fs.existsSync(productsFilePath)) { const d = fs.readFileSync(productsFilePath, 'utf-8'); return JSON.parse(d); } return getDefaultProducts(); } catch (e) { console.error("Error reading products file:", e); return getDefaultProducts(); } };
-const writeProductsToFile = (d) => { try { fs.writeFileSync(productsFilePath, JSON.stringify(d, null, 2), 'utf-8'); } catch (e) { console.error("Error writing products file:", e); } };
-let products = readProductsFromFile();
-
-// --- CHANGE #2: Update Multer to save to the persistent disk ---
-const storage = multer.diskStorage({
-  destination: uploadsPath, // Use the new persistent path
-  filename: (req, file, cb) => cb(null, file.fieldname + '-' + Date.now() + path.extname(file.originalname))
 });
-const upload = multer({ storage, limits: { fileSize: 10000000 }, fileFilter: (req, file, cb) => { const f = /jpeg|jpg|png|gif|webp/; if(f.test(path.extname(file.originalname).toLowerCase()) && f.test(file.mimetype)) return cb(null, true); cb('Error: Images Only!'); } }).array('productImages', 5);
+const upload = multer({ storage });
 
-// --- CHANGE #3: Serve the uploaded images statically from the disk ---
-app.use('/uploads', express.static(uploadsPath));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// --- HTML ROUTES ---
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'views', 'index.html')));
 app.get('/login', (req, res) => res.sendFile(path.join(__dirname, 'views', 'login.html')));
 app.get('/admin', requireLogin, (req, res) => res.sendFile(path.join(__dirname, 'views', 'admin.html')));
 
+// --- AUTH API ---
 app.post('/api/login', (req, res) => {
     if (req.body.password === 'sidarth123') {
         req.session.loggedIn = true;
@@ -71,37 +78,56 @@ app.post('/api/login', (req, res) => {
 });
 app.get('/api/logout', (req, res) => { req.session.destroy(() => { res.clearCookie('connect.sid'); res.redirect('/'); }); });
 
-app.get('/api/products', (req, res) => {
-    const p = products.map(pr => ({ ...pr, images: pr.images.map(i => i.startsWith('/uploads/') ? `${req.protocol}://${req.get('host')}${i}` : i) }));
-    res.setHeader('Cache-Control', 'no-store').json(p);
+// --- PRODUCT API (Now using MongoDB) ---
+app.get('/api/products', async (req, res) => {
+    try {
+        const products = await Product.find({});
+        const productsWithFullPaths = products.map(p => ({
+            _id: p._id,
+            title: p.title,
+            description: p.description,
+            price: p.price,
+            category: p.category,
+            images: p.images.map(img => img.url) // Only send the URLs to the client
+        }));
+        res.setHeader('Cache-Control', 'no-store').json(productsWithFullPaths);
+    } catch (e) {
+        res.status(500).json({ message: 'Error fetching products' });
+    }
 });
 
-app.post('/api/products', requireLogin, (req, res) => {
-  upload(req, res, (err) => {
-    if (err) return res.status(400).send(`<script>alert("Upload Error: ${err.message || err}"); window.location.href="/admin";</script>`);
-    const { title, description, price, category } = req.body;
-    if (!title || !description || !price || !category || !req.files || req.files.length === 0) return res.status(400).send('<script>alert("Submission Error: All fields and an image are required."); window.location.href="/admin";</script>');
-    const maxId = products.reduce((m, p) => p.id > m ? p.id : m, 0);
-    const newProduct = { id: maxId + 1, title, description, price, category, images: req.files.map(f => `/uploads/${f.filename}`) };
-    products.push(newProduct);
-    writeProductsToFile(products); // SAVE TO FILE!
-    res.redirect('/admin');
-  });
+app.post('/api/products', requireLogin, upload.array('productImages', 5), async (req, res) => {
+    try {
+        const { title, description, price, category } = req.body;
+        const newProduct = new Product({ title, description, price, category });
+        newProduct.images = req.files.map(f => ({ url: f.path, filename: f.filename }));
+        await newProduct.save();
+        res.redirect('/admin');
+    } catch (e) {
+        console.error("Error adding product:", e);
+        res.status(500).send("Error adding product");
+    }
 });
 
-app.delete('/api/products/:id', requireLogin, (req, res) => {
-    const id = parseInt(req.params.id, 10);
-    const index = products.findIndex(p => p.id === id);
-    if (index === -1) return res.status(404).json({ message: 'Product not found' });
-    products[index].images.forEach(i => { if (i.startsWith('/uploads/')) fs.unlink(path.join(uploadsPath, path.basename(i)), e => { if(e) console.error("Failed to delete image file:", e); }) });
-    products.splice(index, 1);
-    writeProductsToFile(products); // SAVE TO FILE!
-    res.status(200).json({ message: 'Product deleted' });
+app.delete('/api/products/:id', requireLogin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const productToDelete = await Product.findById(id);
+        if (!productToDelete) return res.status(404).json({ message: 'Product not found' });
+        
+        // Delete images from Cloudinary
+        for (let image of productToDelete.images) {
+            await cloudinary.uploader.destroy(image.filename);
+        }
+        
+        await Product.findByIdAndDelete(id);
+        res.status(200).json({ message: 'Product deleted' });
+    } catch (e) {
+        console.error("Error deleting product:", e);
+        res.status(500).json({ message: 'Error deleting product' });
+    }
 });
 
 app.listen(port, () => {
-    if (!fs.existsSync(productsFilePath)) {
-        writeProductsToFile(getDefaultProducts());
-    }
     console.log(`🚀 Server for Alphonsa Textiles is running on http://localhost:${port}`);
 });
