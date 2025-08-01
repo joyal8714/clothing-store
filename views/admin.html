@@ -3,46 +3,47 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Alphonsa Admin Dashboard</title>
-    <link rel="stylesheet" href="css/style.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&family=Montserrat:wght@300;400;500&display=swap" rel="stylesheet">
+    <title>Fabric nest - Admin</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <header class="main-header">
-        <a href="/admin" class="logo">Alphonsa Admin</a>
+        <a href="/admin" class="logo">Fabric nest Admin</a>
         <nav class="main-nav">
-            <a href="/" class="button-primary">View Live Site</a>
-            <a href="/api/logout" class="button-logout">Logout</a>
+            <a href="/">View Site</a>
+            <a href="/api/logout">Logout</a>
         </nav>
     </header>
     <main class="container">
-        <div class="admin-container">
-            <div class="admin-form-container fade-in">
-                <h2>Add New Product</h2>
+        <h2 class="section-title">Admin Dashboard</h2>
+        <div class="admin-content">
+            <div class="admin-form-wrapper">
+                <h3>Add New Product</h3>
                 <form id="add-product-form" action="/api/products" method="POST" enctype="multipart/form-data" class="admin-form">
-                    <div class="form-group"><label for="title">Product Title</label><input type="text" id="title" name="title" required></div>
-                    <div class="form-group"><label for="description">Product Description</label><textarea id="description" name="description" required rows="4"></textarea></div>
-                    <div class="form-group"><label for="price">Price (INR)</label><input type="number" id="price" name="price" step="0.01" required></div>
-                    <div class="form-group">
-                        <label for="category">Category</label>
+                    <div class="form-group"><label for="title">Title</label><input type="text" id="title" name="title" required></div>
+                    <div class="form-group"><label for="description">Description</label><textarea id="description" name="description" rows="4" required></textarea></div>
+                    <div class="form-group"><label for="price">Price (INR)</label><input type="number" id="price" name="price" required></div>
+                    <div class="form-group"><label for="category">Category</label>
                         <select id="category" name="category" required>
                             <option value="men">Men</option>
                             <option value="women">Women</option>
                             <option value="kids">Kids</option>
                         </select>
                     </div>
-                    <div class="form-group"><label for="productImages">Product Images (up to 5, max 10MB each)</label><input type="file" id="productImages" name="productImages" multiple required></div>
+                    <div class="form-group"><label for="productImages">Images (up to 5)</label><input type="file" id="productImages" name="productImages" multiple required></div>
                     <button type="submit" class="submit-btn">Add Product</button>
                 </form>
             </div>
-            <div class="admin-products-list fade-in">
-                <h2>Current Products</h2>
-                <div id="current-products-grid"></div>
+            <div class="admin-products-wrapper">
+                <h3>Current Products</h3>
+                <div id="admin-products-grid" class="product-grid">
+                    <!-- Products loaded by admin.js -->
+                </div>
             </div>
         </div>
     </main>
-    <script src="js/admin.js"></script>
+    <script src="/js/admin.js"></script>
+    <script src="/js/app.js"></script>
 </body>
 </html>

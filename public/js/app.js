@@ -1,98 +1,124 @@
 document.addEventListener('DOMContentLoaded', () => {
     const productGrid = document.getElementById('product-grid');
-    const pageTitle = document.getElementById('page-title');
     const modal = document.getElementById('product-modal');
-    let allProducts = [];
+    const modalCloseBtn = document.getElementById('modal-close-btn');
+    const modalImageContainer = document.getElementById('modal-image-container');
+    const modalTitle = document.getElementById('modal-title');
+    const modalDescription = document.getElementById('modal-description');
+    const modalPrice = document.getElementById('modal-price');
+    const pageTitle = document.getElementById('page-title');
+    const searchInput = document.getElementById('search-input'); // ✅ Add this
 
-    const loadProducts = async () => {
-        try {
-            // Use a cache-busting parameter to ensure we always get fresh data
-            const res = await fetch(`/api/products?t=${new Date().getTime()}`);
-            if (!res.ok) {
-                throw new Error(`HTTP error! status: ${res.status}`);
-            }
-            allProducts = await res.json();
-            
-            const params = new URLSearchParams(window.location.search);
-            const category = params.get('category');
-            
-            displayProducts(category);
-        } catch (error) {
-            console.error('Failed to load products:', error);
-            productGrid.innerHTML = '<p style="color: red;">Error: Could not load products. Please try again later.</p>';
-        }
-    };
+    let allProducts = []; // Store all fetched products
 
-    const displayProducts = (category) => {
-        let productsToDisplay = allProducts;
-
-        if (category) {
-            productsToDisplay = allProducts.filter(p => p.category && p.category.toLowerCase() === category.toLowerCase());
-            pageTitle.textContent = `${category.charAt(0).toUpperCase() + category.slice(1)}'s Collection`;
-        } else {
-            pageTitle.textContent = 'Our Latest Collection';
-        }
-        
-        productGrid.innerHTML = '';
-        if (productsToDisplay.length === 0) {
-            productGrid.innerHTML = '<p>No products found in this collection yet.</p>';
-            return;
-        }
-
+    const displayProducts = (productsToDisplay) => {
+        productGrid.innerHTML = ''; // Clear existing
         productsToDisplay.forEach(product => {
             const card = document.createElement('div');
             card.className = 'product-card';
-            card.dataset.productId = product._id; // Use _id from MongoDB
-            
-            // Defensive check for images array
-            const imageUrl = (product.images && product.images.length > 0) ? product.images[0] : 'https://via.placeholder.com/380x380.png?text=No+Image';
-
+            card.dataset.id = product._id;
             card.innerHTML = `
-                <img src="${imageUrl}" alt="${product.title}" class="product-image">
-                <div class="product-info">
-                    <h3 class="product-title">${product.title || 'Untitled Product'}</h3>
-                    <p class="product-description">${(product.description || '').substring(0, 100)}...</p>
-                    <div class="product-footer">
-                        <span class="product-price">₹${product.price || '0.00'}</span>
-                    </div>
+                <div class="image-slider">
+                    ${product.images.map((image, index) => `
+                        <img src="${image.url}" alt="${product.title}" class="slider-image ${index === 0 ? 'active' : ''}" />
+                    `).join('')}
+                    <button class="slider-btn prev-btn" data-action="slide">&lt;</button>
+                    <button class="slider-btn next-btn" data-action="slide">&gt;</button>
                 </div>
-            `;
-            card.addEventListener('click', () => openModal(product._id));
+                <div class="product-info">
+                    <h3>${product.title}</h3>
+                    <p class="price">₹${product.price}</p>
+                </div>`;
             productGrid.appendChild(card);
         });
     };
 
-    const modalImageSlider = document.getElementById('modal-image-slider'), modalTitle = document.getElementById('modal-title'), modalDescription = document.getElementById('modal-description'), modalPrice = document.getElementById('modal-price');
-    let currentImageIndex = 0, currentImages = [];
+    const fetchAndDisplayProducts = async () => {
+        try {
+            const res = await fetch('/api/products');
+            allProducts = await res.json();
+            
+            const params = new URLSearchParams(window.location.search);
+            const category = params.get('category');
+
+            if (category) {
+                const filteredProducts = allProducts.filter(p => p.category.toLowerCase() === category.toLowerCase());
+                pageTitle.textContent = `Category: ${category.charAt(0).toUpperCase() + category.slice(1)}`;
+                displayProducts(filteredProducts);
+            } else {
+                pageTitle.textContent = 'Our Latest Collection';
+                displayProducts(allProducts);
+            }
+
+            // ✅ Attach search listener after rendering products
+            if (searchInput) {
+                searchInput.addEventListener('input', () => {
+                    const query = searchInput.value.toLowerCase();
+                    const filtered = allProducts.filter(p => p.title.toLowerCase().includes(query));
+                    displayProducts(filtered);
+                });
+            }
+
+        } catch (e) {
+            console.error("Failed to fetch products:", e);
+            productGrid.innerHTML = "<p>Error loading products.</p>";
+        }
+    };
 
     const openModal = (productId) => {
         const product = allProducts.find(p => p._id === productId);
         if (!product) return;
-        currentImages = product.images || [];
-        currentImageIndex = 0;
+
         modalTitle.textContent = product.title;
         modalDescription.textContent = product.description;
         modalPrice.textContent = `₹${product.price}`;
-        updateSlider();
-        modal.style.display = 'flex';
-        document.body.style.overflow = 'hidden';
+        
+        modalImageContainer.innerHTML = `
+            <div class="image-slider">
+                ${product.images.map((image, index) => `
+                    <img src="${image.url}" alt="${product.title}" class="slider-image ${index === 0 ? 'active' : ''}" />
+                `).join('')}
+                <button class="slider-btn prev-btn">&lt;</button>
+                <button class="slider-btn next-btn">&gt;</button>
+            </div>`;
+
+        modal.classList.add('show');
     };
 
-    const closeModal = () => { modal.style.display = 'none'; document.body.style.overflow = 'auto'; };
-    const updateSlider = () => {
-        modalImageSlider.innerHTML = currentImages.map(src => `<img src="${src}" alt="${modalTitle.textContent}">`).join('');
-        modalImageSlider.style.transform = `translateX(-${currentImageIndex * 100}%)`;
-        document.getElementById('slider-prev-btn').style.display = currentImages.length > 1 ? 'block' : 'none';
-        document.getElementById('slider-next-btn').style.display = currentImages.length > 1 ? 'block' : 'none';
+    const closeModal = () => {
+        modal.classList.remove('show');
     };
-    const showNextImage = () => { currentImageIndex = (currentImageIndex + 1) % currentImages.length; updateSlider(); };
-    const showPrevImage = () => { currentImageIndex = (currentImageIndex - 1 + currentImages.length) % currentImages.length; updateSlider(); };
 
-    document.getElementById('modal-close-btn').addEventListener('click', closeModal);
-    modal.addEventListener('click', (e) => e.target === modal && closeModal());
-    document.getElementById('slider-next-btn').addEventListener('click', showNextImage);
-    document.getElementById('slider-prev-btn').addEventListener('click', showPrevImage);
-    document.addEventListener('keydown', (e) => { if (modal.style.display === 'flex') { if (e.key === 'Escape') closeModal(); if (e.key === 'ArrowRight') showNextImage(); if (e.key === 'ArrowLeft') showPrevImage(); } });
-    
-    loadProducts();
+    document.addEventListener('click', (e) => {
+        if (e.target.classList.contains('slider-btn')) {
+            const slider = e.target.closest('.image-slider');
+            const images = slider.querySelectorAll('.slider-image');
+            let activeIndex = Array.from(images).findIndex(img => img.classList.contains('active'));
+
+            images[activeIndex].classList.remove('active');
+
+            if (e.target.classList.contains('next-btn')) {
+                activeIndex = (activeIndex + 1) % images.length;
+            } else if (e.target.classList.contains('prev-btn')) {
+                activeIndex = (activeIndex - 1 + images.length) % images.length;
+            }
+
+            images[activeIndex].classList.add('active');
+            return;
+        }
+
+        const card = e.target.closest('.product-card');
+        if (card) {
+            openModal(card.dataset.id);
+        }
+    });
+
+    modalCloseBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            closeModal();
+        }
+    });
+
+    fetchAndDisplayProducts();
 });

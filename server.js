@@ -17,13 +17,6 @@ const { CloudinaryStorage } = require('multer-storage-cloudinary');
 // --- Checkpoint 3: All modules loaded ---
 console.log('[DEBUG] All modules loaded.');
 
-// This is a special tool to catch hidden errors
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('--- 🔴 UNHANDLED REJECTION 🔴 ---');
-  console.error('This is the hidden error we were looking for!');
-  console.error('Reason:', reason);
-});
-
 try {
     cloudinary.config({ 
       cloud_name: process.env.CLOUDINARY_CLOUD_NAME, 
@@ -56,24 +49,25 @@ const ProductSchema = new mongoose.Schema({
 const Product = mongoose.model('Product', ProductSchema);
 
 app.use(session({
-  secret: 'alphonsa-textiles-secret-key-for-sidarth',
+  secret: 'fabric-nest-secret-key-for-sidarth',
   resave: false, saveUninitialized: false,
   cookie: { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 }
 }));
 
 const requireLogin = (req, res, next) => req.session.loggedIn ? next() : res.redirect('/login');
 
-// Change the code to this
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: { 
-    folder: 'alphonsa-textiles', 
-    allowed_formats: ['jpeg', 'jpg', 'png', 'webp', 'avif'] // <-- Add 'avif' here
+    folder: 'fabric-nest-products', 
+    allowed_formats: ['jpeg', 'jpg', 'png', 'webp', 'avif']
   }
 });
 const upload = multer({ storage });
 
+// THIS IS THE CRITICAL LINE FOR SERVING CSS, JS, and IMAGES
 app.use(express.static(path.join(__dirname, 'public')));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -84,7 +78,7 @@ app.get('/admin', requireLogin, (req, res) => res.sendFile(path.join(__dirname, 
 
 // API Routes
 app.post('/api/login', (req, res) => {
-    if (req.body.password === 'sidarth123') {
+    if (req.body.password === 'sidarth123') { // Make sure your password is correct
         req.session.loggedIn = true;
         res.redirect('/admin');
     } else { res.send('<script>alert("Incorrect Password!"); window.location.href="/login";</script>'); }
@@ -94,8 +88,7 @@ app.get('/api/logout', (req, res) => { req.session.destroy(() => { res.clearCook
 app.get('/api/products', async (req, res) => {
     try {
         const products = await Product.find({}).sort({ _id: -1 });
-        const productsWithImageUrls = products.map(p => ({_id: p._id, title: p.title, description: p.description, price: p.price, category: p.category, images: p.images.map(img => img.url)}));
-        res.setHeader('Cache-Control', 'no-store').json(productsWithImageUrls);
+        res.setHeader('Cache-Control', 'no-store').json(products);
     } catch (e) { res.status(500).json({ message: 'Error fetching products' }); }
 });
 
@@ -125,5 +118,7 @@ app.delete('/api/products/:id', requireLogin, async (req, res) => {
 console.log('[DEBUG] All routes defined. Starting server...');
 
 app.listen(port, () => {
-    console.log(`🚀 Server for Alphonsa Textiles is running on http://localhost:${port}`);
+    console.log(`🚀 Server for Fabric nest is running on http://localhost:${port}`);
 });
+
+
